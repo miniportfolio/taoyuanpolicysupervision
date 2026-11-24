@@ -179,6 +179,43 @@
       }).join("");
   };
 
+
+  // ---------- 編制員額（背景資訊，不做任何換算） ----------
+  var STAFF_SRC = "https://opendata.tycg.gov.tw/datalist/f542c86c-1221-4505-a748-fc4d33680cbc";
+  function spark(series) {
+    var pts = series.filter(function (p) { return p[1] != null; });
+    if (pts.length < 3) return "";
+    var W = 260, H = 70, px = 14, py = 18, n = series.length;
+    var vs = pts.map(function (p) { return p[1]; }), lo = Math.min.apply(null, vs), hi = Math.max.apply(null, vs);
+    if (hi === lo) { hi += 1; lo -= 1; }
+    var X = function (i) { return px + i * (W - 2 * px) / (n - 1); }, Y = function (v) { return H - py - (v - lo) / (hi - lo) * (H - 2 * py); };
+    var d = "", pen = false;
+    series.forEach(function (p, i) { if (p[1] == null) { pen = false; return; } d += (pen ? "L" : "M") + X(i).toFixed(1) + " " + Y(p[1]).toFixed(1); pen = true; });
+    var dots = series.map(function (p, i) {
+      return p[1] == null ? "" : '<g class="sp"><circle cx="' + X(i).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="9" fill="transparent"/><circle class="m" cx="' + X(i).toFixed(1) + '" cy="' + Y(p[1]).toFixed(1) + '" r="3"/><title>' + p[0] + " 年：" + p[1] + " 人</title></g>";
+    }).join("");
+    return '<svg class="spark" viewBox="0 0 ' + W + " " + (H + 14) + '" role="img" aria-label="編制員額歷年變化">' +
+      '<path d="' + d + '" fill="none" stroke="#00897b" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>' + dots +
+      (function () { var f = series.findIndex(function (p) { return p[1] != null; }), l = series.length - 1; while (series[l][1] == null) l--;
+        return '<text x="' + X(f).toFixed(1) + '" y="' + (Y(series[f][1]) - 6).toFixed(1) + '" class="vl">' + series[f][1] + '</text><text x="' + X(l).toFixed(1) + '" y="' + (Y(series[l][1]) - 6).toFixed(1) + '" class="vl" text-anchor="end">' + series[l][1] + "</text>"; })() +
+      '<text x="' + px + '" y="' + (H + 12) + '" class="ax">' + series[0][0] + '</text><text x="' + (W - px) + '" y="' + (H + 12) + '" class="ax" text-anchor="end">' + series[n - 1][0] + "</text></svg>";
+  }
+  function staffSection(a) {
+    var L = D.staffLatest(a);
+    var kids = a._children.map(function (c) { return D.staffLatest(c); }).filter(function (x) { return x && L && x.y === L.y; });
+    var kidSum = kids.reduce(function (s, x) { return s + x.v; }, 0);
+    if (!L) return "";
+    var first = a._staff.series.find(function (p) { return p[1] != null; });
+    var tbl = '<details class="ldet"><summary>看歷年數字</summary><table class="tbl"><tr><th>年度</th><th>編制員額</th></tr>' +
+      a._staff.series.map(function (p) { return "<tr><td>" + p[0] + ' 年</td><td class="num">' + (p[1] == null ? '<span class="muted">—</span>' : p[1]) + "</td></tr>"; }).join("") + "</table></details>";
+    return '<section class="card"><h2>編制員額 <small>背景資訊</small></h2>' +
+      '<div class="staff"><div><div class="big">' + L.v.toLocaleString() + ' <small>人</small></div><div class="muted">' + L.y + " 年編制" +
+      (first && first[0] !== L.y ? "（" + first[0] + " 年 " + first[1] + " 人）" : "") + "</div>" +
+      (kids.length ? '<div class="muted">所屬二級機關另有 ' + kidSum.toLocaleString() + " 人（" + kids.length + " 個機關合計）</div>" : "") + "</div>" + spark(a._staff.series) + "</div>" +
+      (a._staff.note ? '<p class="fine">' + esc(a._staff.note) + "</p>" : "") + tbl +
+      '<p class="fine">編制員額是法規允許的人數上限，不是實際在職人數，也不代表工作量，所以本站不拿它計算任何效率指標。' + src(STAFF_SRC, "資料來源：桃園市政府人事處") + "</p></section>";
+  }
+
   R.agency = function (id) {
     var a = D.agency[id]; if (!a) return notFound();
     var up = D.agency[a["上級局處ID"]], h = D.head(id);
@@ -195,7 +232,7 @@
       '<section class="card"><h2>職掌</h2><p>' + esc(a["職掌摘要"] || "未填") + "</p>" +
       (up ? '<p class="muted">上級：' + agencyLink(up["局處ID"]) + "</p>" : "") +
       (a._children.length ? '<p class="muted">下屬機關（' + a._children.length + "）：" + a._children.map(function (c) { return agencyLink(c["局處ID"]); }).join("、") + "</p>" : "") +
-      (a["備註"] ? '<p class="fine">' + esc(a["備註"]) + "</p>" : "") + "</section>" +
+      (a["備註"] ? '<p class="fine">' + esc(a["備註"]) + "</p>" : "") + "</section>" + staffSection(a) +
       '<section class="card"><h2>首長</h2>' + (h ? '<p class="now">現任：' + personLink(h["人物ID"]) + " " + esc(h["職稱"]) + '<span class="muted">（' + esc(h["到任日"]) + " 到任）</span></p>" : "") + hist + "</section>" +
       '<section class="card"><h2>負責的政見</h2>' + pol + "</section>" +
       '<section class="card"><h2>擔任主管機關的進度</h2>' + steps(a._steps, true) + "</section>" +
@@ -391,14 +428,15 @@
         '<td><div class="lbar" title="主責 ' + x.lead + "、協辦 " + x.co + '"><span class="lb lead" style="width:' + bw(x.lead) + '"></span><span class="lb co" style="width:' + bw(x.co) + '"></span></div><span class="num">' + x.lead + " / " + x.co + "</span></td>" +
         '<td>' + (stbar ? '<div class="sbar">' + stbar + "</div>" : '<span class="muted">—</span>') + "</td>" +
         '<td class="num">' + (x.days == null ? '<span class="muted">—</span>' : esc(x.last) + (x.days >= 0 ? '<br><span class="muted">' + x.days + " 天前</span>" : "")) + "</td>" +
+        '<td class="num">' + (function () { var L = D.staffLatest(x.a); return L ? L.v.toLocaleString() : '<span class="muted">—</span>'; })() + "</td>" +
         '<td><div class="qbar"><span style="width:' + (x.qs / maxQ * 100).toFixed(1) + '%"></span></div><span class="num">' + x.qs + "</span></td></tr>";
     }).join("");
     return "<h1>局處與職掌</h1>" + subtabs(AG_TABS, "#/load") +
       '<div class="note-card"><b>這一頁不打「效率分數」。</b>公開資料只看得到結果、看不到原因：同樣停滯，可能是局處延宕，也可能在等中央核定或議會預算。所以這裡只列出可以查證的數字，請搭配各政見的進度紀錄一起判讀。</div>' +
       '<div class="legend"><span class="lgr"><span class="sw lead"></span>主責政見</span><span class="lgr"><span class="sw co"></span>協辦政見</span>' +
       STATUS.map(function (s, i) { return '<span class="lgr"><span class="dot" style="background:' + STC[i] + '"></span>' + s + "</span>"; }).join("") + "</div>" +
-      '<div class="tscroll"><table class="tbl load"><tr><th>局處</th><th>負責政見（主責 / 協辦）</th><th>主責政見的狀態</th><th>距最近公開進度</th><th>被質詢次數</th></tr>' + rowsH + "</table></div>" +
-      '<p class="fine">排序依負擔（主責算 2、協辦算 1）。「距最近公開進度」取該局處主責政見中最新一筆進度紀錄的日期；天數長不一定代表延宕，請點進政見看原因。</p>';
+      '<div class="tscroll"><table class="tbl load"><tr><th>局處</th><th>負責政見（主責 / 協辦）</th><th>主責政見的狀態</th><th>距最近公開進度</th><th>編制員額' + (D.staffYears.length ? "<br><small>" + D.staffYears[D.staffYears.length - 1] + " 年</small>" : "") + '</th><th>被質詢次數</th></tr>' + rowsH + "</table></div>" +
+      '<p class="fine">排序依負擔（主責算 2、協辦算 1）。「距最近公開進度」取該局處主責政見中最新一筆進度紀錄的日期；天數長不一定代表延宕，請點進政見看原因。「編制員額」是人事處公布的法定人數上限，只當背景參考，不拿來和政見數相除。</p>';
   };
 
   function notFound() { return "<h1>找不到這一頁</h1><p>" + link("#/", "回首頁") + "</p>"; }

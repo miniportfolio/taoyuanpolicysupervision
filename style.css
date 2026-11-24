@@ -164,3 +164,14 @@ h2 small{font-size:13px}
 .ldet summary{cursor:pointer;color:var(--accent)}
 .ldet ul{min-width:320px;white-space:normal}
 .ldet li{padding:4px 0}
+
+/* 編制員額 */
+.staff{display:flex;flex-wrap:wrap;gap:12px 24px;align-items:center;justify-content:space-between}
+.staff .big{font-size:1.8rem;font-weight:700;line-height:1.1}
+.staff .big small{font-size:.9rem;font-weight:400;color:#666}
+.spark{width:260px;max-width:100%;height:auto}
+.spark .m{fill:#00897b;stroke:#fff;stroke-width:2}
+.spark .sp:hover .m{r:5}
+.spark .ax{font-size:10px;fill:#777}
+h2 small{font-size:.75rem;font-weight:400;color:#777;margin-left:4px}
+.spark .vl{font-size:11px;fill:#444}

@@ -42,15 +42,16 @@
     return "data/demo/" + encodeURIComponent(tab) + ".csv";
   }
 
+  var OPTIONAL = ["員額"];   // 讀不到也不影響網站
   function loadAll(cfg) {
-    return Promise.all(TABS.map(function (t) {
+    return Promise.all(TABS.concat(OPTIONAL).map(function (t) {
       return fetch(urlFor(t, cfg), { cache: "no-store" }).then(function (r) {
         if (!r.ok) throw new Error(t + "：HTTP " + r.status);
         return r.text();
       }).then(function (txt) {
         if (/^\s*</.test(txt)) throw new Error(t + "：讀到的不是表格，請確認試算表已設為「知道連結的任何人都能檢視」");
         return [t, toObjects(parseCSV(txt))];
-      });
+      }).catch(function (e) { if (OPTIONAL.indexOf(t) >= 0) return [t, []]; throw e; });
     })).then(function (pairs) {
       var raw = {};
       pairs.forEach(function (p) { raw[p[0]] = p[1]; });
@@ -105,6 +106,23 @@
       if (a) a._qs.push(q);
       q._policies.forEach(function (id) { if (D.policy[id]) D.policy[id]._qs.push(q); });
     });
+    // 編制員額（寬表：局處ID、資料原名、106年…、備註）
+    // 試算表找不到分頁時 gviz 會回傳第一個分頁，所以要確認欄名對得上
+    var staff = (T["員額"] || []).filter(function (r) { return r["局處ID"] && Object.keys(r).some(function (k) { return /^\d{2,3}年$/.test(k); }); });
+    D.staffYears = [];
+    staff.forEach(function (r) {
+      var ys = Object.keys(r).filter(function (k) { return /^\d{2,3}年$/.test(k); }).map(function (k) { return +k.replace("年", ""); }).sort(function (a, b) { return a - b; });
+      ys.forEach(function (y) { if (D.staffYears.indexOf(y) < 0) D.staffYears.push(y); });
+      var a = D.agency[r["局處ID"]]; if (!a) return;
+      a._staff = { name: r["資料原名"], note: r["備註"], series: ys.map(function (y) { var v = r[y + "年"]; return [y, v === "" || v == null ? null : +v.replace(/,/g, "")]; }) };
+    });
+    D.staffYears.sort(function (a, b) { return a - b; });
+    D.staffLatest = function (a) {
+      if (!a || !a._staff) return null;
+      for (var i = a._staff.series.length - 1; i >= 0; i--) if (a._staff.series[i][1] != null) return { y: a._staff.series[i][0], v: a._staff.series[i][1] };
+      return null;
+    };
+
     // 某人在某日期擔任的職位（質詢時的頭銜）
     D.roleAt = function (personId, date) {
       var p = D.person[personId]; if (!p) return null;
