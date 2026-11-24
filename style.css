@@ -175,3 +175,7 @@ h2 small{font-size:13px}
 .spark .ax{font-size:10px;fill:#777}
 h2 small{font-size:.75rem;font-weight:400;color:#777;margin-left:4px}
 .spark .vl{font-size:11px;fill:#444}
+.filters small{opacity:.65;margin-left:2px}
+.domcards .sbar{margin:8px 0 6px}
+.domcards .dag{font-size:.85rem;color:#555;line-height:1.6}
+.domcards .dag .lead{font-weight:700;color:#222}

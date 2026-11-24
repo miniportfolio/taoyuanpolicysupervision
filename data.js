@@ -33,13 +33,13 @@
     }).filter(function (o) { return o[head[0]]; });   // 第一欄（代碼）空白的列略過
   }
 
-  var DEMO = /[?&]demo=1/.test(location.search);
+  var DEMO = /[?&]demo=(1|sim)\b/.test(location.search), SIM = /[?&]demo=sim\b/.test(location.search);
   function urlFor(tab, cfg) {
     if (cfg.sheetId && !DEMO) {
       return "https://docs.google.com/spreadsheets/d/" + cfg.sheetId +
         "/gviz/tq?tqx=out:csv&headers=1&sheet=" + encodeURIComponent(tab);
     }
-    return "data/demo/" + encodeURIComponent(tab) + ".csv";
+    return (SIM ? "data/sim/" : "data/demo/") + encodeURIComponent(tab) + ".csv";
   }
 
   var OPTIONAL = ["員額"];   // 讀不到也不影響網站
@@ -63,7 +63,7 @@
   function build(T, demo) {
     var by = function (arr, k) { var m = {}; arr.forEach(function (o) { m[o[k]] = o; }); return m; };
     var D = {
-      demo: demo, T: T,
+      demo: demo, sim: SIM, T: T,
       agency: by(T["局處"], "局處ID"), person: by(T["官員"], "人物ID"),
       policy: by(T["政策"], "政策ID"), councillor: by(T["議員"], "議員ID")
     };
