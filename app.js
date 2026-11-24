@@ -342,56 +342,59 @@
   };
 
   // ---------- 政策與局處關聯圖 ----------
-  R.map = function (q) {
+  var MAPFOLD = null;   // 收起的領域（只存在這次瀏覽）
+  R.map = function () {
     var P = D.T["政策"].slice(), rows = D.T["政策局處"].filter(function (r) { return D.policy[r["政策ID"]] && D.agency[r["局處ID"]]; });
     if (!P.length) return "<h1>政見追蹤</h1>" + subtabs(PO_TABS, "#/map") + empty("還沒有政見資料。");
     var dom = function (p) { return p["領域"] || p["類別"] || "未分類"; };
-    // 領域篩選：政見太多時一次只畫一個領域，「全部」改成總覽卡片
-    var doms = {}; P.forEach(function (p) { doms[dom(p)] = (doms[dom(p)] || 0) + 1; });
-    var dlist = Object.keys(doms).sort(function (a, b) { return doms[b] - doms[a] || a.localeCompare(b); });
-    var cur = q.dom && doms[q.dom] ? q.dom : "", MAXALL = 15, overview = !cur && P.length > MAXALL;
-    var dchips = dlist.length > 1 ? '<div class="filters"><div><span>領域</span><a class="chip' + (cur ? "" : " on") + '" href="' + qs(q, "dom", "") + '">全部 <small>' + P.length + "</small></a>" +
-      dlist.map(function (d) { return '<a class="chip' + (cur === d ? " on" : "") + '" href="' + qs(q, "dom", d) + '">' + esc(d) + " <small>" + doms[d] + "</small></a>"; }).join("") + "</div></div>" : "";
-    if (overview) {
-      var cards = dlist.map(function (d) {
-        var ps = P.filter(function (p) { return dom(p) === d; }), ids = {}, rc = {};
-        ps.forEach(function (p) { ids[p["政策ID"]] = 1; });
-        rows.forEach(function (r) { if (ids[r["政策ID"]]) rc[r["局處ID"]] = rc[r["局處ID"]] || r["角色"] === "主責"; });
-        var ag = Object.keys(rc).sort(function (a, b) { return (rc[b] ? 1 : 0) - (rc[a] ? 1 : 0); });
-        var st = STATUS.map(function (x) { return ps.filter(function (p) { return p["目前狀態"] === x; }).length; });
-        return '<li><a href="' + qs(q, "dom", d) + '"><b>' + esc(d) + '</b><span class="muted">' + ps.length + " 項政見・" + ag.length + " 個機關</span>" +
-          '<div class="sbar">' + st.map(function (n, i) { return n ? '<span class="seg" style="flex:' + n + ";background:" + STC[i] + '" title="' + STATUS[i] + " " + n + '"></span>' : ""; }).join("") + "</div>" +
-          '<p class="dag">' + ag.map(function (id) { return '<span class="' + (rc[id] ? "lead" : "") + '">' + esc(agencyName(id)) + "</span>"; }).join("、") + "</p></a></li>";
-      }).join("");
-      return "<h1>政見追蹤</h1>" + subtabs(PO_TABS, "#/map") + dchips +
-        '<p class="muted">政見共 ' + P.length + " 項，全部畫在一起線會糾成一團，所以先依領域分組。點一個領域（或上方按鈕）就會畫出該領域的政見與局處關聯圖。粗體是擔任主責的機關。</p>" +
-        '<div class="legend">' + STATUS.map(function (x, i) { return '<span class="lgr"><span class="dot" style="background:' + STC[i] + '"></span>' + x + "</span>"; }).join("") + "</div>" +
-        '<ul class="ags domcards">' + cards + "</ul>";
-    }
-    if (cur) {
-      P = P.filter(function (p) { return dom(p) === cur; });
-      rows = rows.filter(function (r) { return dom(D.policy[r["政策ID"]]) === cur; });
-    }
     P.sort(function (a, b) { return dom(a).localeCompare(dom(b)) || a["政策ID"].localeCompare(b["政策ID"]); });
-    // 只畫有連線的局處，依連線數排序
-    var cnt = {}; rows.forEach(function (r) { cnt[r["局處ID"]] = (cnt[r["局處ID"]] || 0) + (r["角色"] === "主責" ? 2 : 1); });
-    var A = Object.keys(cnt).sort(function (a, b) { return cnt[b] - cnt[a] || a.localeCompare(b); });
-    var RH = 34, top = 30, W = 900, PX = 290, AX = 610, h;
-    var py = {}, y = top, lastDom = null, labels = "";
-    P.forEach(function (p) {
-      if (dom(p) !== lastDom) { lastDom = dom(p); labels += '<text class="mdom" x="8" y="' + (y + 14) + '">' + esc(lastDom) + "</text>"; y += RH * 0.8; }
-      py[p["政策ID"]] = y + RH / 2; y += RH;
+    var doms = []; P.forEach(function (p) { if (doms.indexOf(dom(p)) < 0) doms.push(dom(p)); });
+    if (!MAPFOLD) MAPFOLD = {};
+    var RANK = { "主責": 3, "需中央配合": 2, "協辦": 1 };
+    // 版面：左欄依領域排列；收起的領域只佔一列，線依局處合併
+    var RH = 34, top = 30, W = 900, PX = 290, AX = 610, h, y = top;
+    var nodes = [], links = [], heads = "";
+    doms.forEach(function (d) {
+      var ps = P.filter(function (p) { return dom(p) === d; }), fold = !!MAPFOLD[d];
+      heads += '<g class="mdomh" data-dom="' + esc(d) + '" tabindex="0" role="button" aria-expanded="' + !fold + '"><rect x="4" y="' + y + '" width="' + (PX - 4) + '" height="' + (RH * 0.8) + '" fill="transparent"/>' +
+        '<text class="mdom" x="8" y="' + (y + 16) + '">' + (fold ? "▸ " : "▾ ") + esc(d) + "　" + ps.length + "</text></g>";
+      y += RH * 0.8;
+      if (fold) {
+        var gid = "G:" + d, agg = {};
+        ps.forEach(function (p) { rows.forEach(function (r) {
+          if (r["政策ID"] !== p["政策ID"]) return;
+          var k = r["局處ID"], g = agg[k] || (agg[k] = { role: r["角色"], n: 0 });
+          g.n++; if ((RANK[r["角色"]] || 0) > (RANK[g.role] || 0)) g.role = r["角色"];
+        }); });
+        nodes.push({ id: gid, y: y + RH / 2, fold: d, n: ps.length, st: STATUS.map(function (x) { return ps.filter(function (p) { return p["目前狀態"] === x; }).length; }) });
+        Object.keys(agg).forEach(function (k) { links.push({ p: gid, a: k, role: agg[k].role, n: agg[k].n, t: d + "（" + agg[k].n + " 項）→ " + agencyName(k) }); });
+        y += RH;
+      } else ps.forEach(function (p) {
+        nodes.push({ id: p["政策ID"], y: y + RH / 2, p: p });
+        rows.forEach(function (r) { if (r["政策ID"] === p["政策ID"]) links.push({ p: p["政策ID"], a: r["局處ID"], role: r["角色"], n: 1, t: p["政策名稱"] + " → " + agencyName(r["局處ID"]) + "（" + r["角色"] + "）" }); });
+        y += RH;
+      });
     });
-    var ay = {}, aTop = top + Math.max(0, (y - top - A.length * RH) / 2);
-    A.forEach(function (id, i) { ay[id] = aTop + i * RH + RH / 2; });
-    h = Math.max(y, aTop + A.length * RH) + 12;
-    var lines = rows.map(function (r) {
-      var s = ROLE[r["角色"]] || ROLE["協辦"], y1 = py[r["政策ID"]], y2 = ay[r["局處ID"]], mx = (PX + AX) / 2;
-      return '<path class="mlink" data-p="' + esc(r["政策ID"]) + '" data-a="' + esc(r["局處ID"]) + '" d="M' + PX + " " + y1 + " C" + mx + " " + y1 + " " + mx + " " + y2 + " " + AX + " " + y2 +
-        '" stroke="' + s.c + '" stroke-width="' + s.w + '" stroke-dasharray="' + s.dash + '"><title>' + esc(D.policy[r["政策ID"]]["政策名稱"] + " → " + agencyName(r["局處ID"]) + "（" + r["角色"] + "）") + "</title></path>";
+    // 右欄：局處依連到的政見平均高度排序（減少交叉），平均分布在整個高度
+    var ny = {}; nodes.forEach(function (n) { ny[n.id] = n.y; });
+    var bc = {}; links.forEach(function (l) { var w = l.role === "主責" ? 3 : 1, o = bc[l.a] || (bc[l.a] = [0, 0]); o[0] += ny[l.p] * w; o[1] += w; });
+    var A = Object.keys(bc).sort(function (a, b) { return bc[a][0] / bc[a][1] - bc[b][0] / bc[b][1]; });
+    var step = Math.max(RH, A.length > 1 ? (y - top - RH) / (A.length - 1) : RH), ay = {};
+    A.forEach(function (id, i) { ay[id] = top + RH / 2 + (A.length > 1 ? i * step : (y - top) / 2); });
+    h = Math.max(y, top + (A.length - 1) * step + RH) + 12;
+    var lines = links.map(function (l) {
+      var s = ROLE[l.role] || ROLE["協辦"], y1 = ny[l.p], y2 = ay[l.a], mx = (PX + AX) / 2, w = l.n > 1 ? s.w + Math.min(3, (l.n - 1) * 0.8) : s.w;
+      return '<path class="mlink" data-p="' + esc(l.p) + '" data-a="' + esc(l.a) + '" d="M' + PX + " " + y1 + " C" + mx + " " + y1 + " " + mx + " " + y2 + " " + AX + " " + y2 +
+        '" stroke="' + s.c + '" stroke-width="' + w.toFixed(1) + '" stroke-dasharray="' + s.dash + '"><title>' + esc(l.t) + "</title></path>";
     }).join("");
-    var pn = P.map(function (p) {
-      var i = STATUS.indexOf(p["目前狀態"]), y0 = py[p["政策ID"]];
+    var pn = nodes.map(function (n) {
+      var y0 = n.y;
+      if (n.fold) {
+        var tot = n.n, x = 30, seg = n.st.map(function (c, i) { if (!c) return ""; var w = c / tot * 90, r = '<rect x="' + x.toFixed(1) + '" y="' + (y0 - 3) + '" width="' + Math.max(w - 1, 1).toFixed(1) + '" height="6" rx="2" fill="' + STC[i] + '"><title>' + STATUS[i] + " " + c + "</title></rect>"; x += w; return r; }).join("");
+        return '<g class="mnode mfold" data-p="' + esc(n.id) + '" data-dom="' + esc(n.fold) + '" tabindex="0" role="button"><rect x="18" y="' + (y0 - 13) + '" width="' + (PX - 18) + '" height="26" rx="6"/>' + seg +
+          '<text x="132" y="' + (y0 + 5) + '">' + tot + " 項政見（點一下展開）</text><title>" + esc(n.fold) + "：已收起 " + tot + " 項政見</title></g>";
+      }
+      var p = n.p, i = STATUS.indexOf(p["目前狀態"]);
       return '<a href="#/policy/' + esc(p["政策ID"]) + '"><g class="mnode" data-p="' + esc(p["政策ID"]) + '"><rect x="18" y="' + (y0 - 13) + '" width="' + (PX - 18) + '" height="26" rx="6"/>' +
         '<circle cx="32" cy="' + y0 + '" r="5" fill="' + (STC[i] || "#bbb") + '"/><text x="44" y="' + (y0 + 5) + '">' + esc(trunc(p["政策名稱"], 16)) + "</text>" +
         '<title>' + esc(p["政策名稱"] + "｜" + (p["目前狀態"] || "未填") + "｜" + (p["來源類型"] || "")) + "</title></g></a>";
@@ -406,15 +409,32 @@
     }).join("") + STATUS.map(function (s, i) { return '<span class="lgr"><span class="dot" style="background:' + STC[i] + '"></span>' + s + "</span>"; }).join("");
     var table = '<details class="tview"><summary>以表格檢視</summary><table class="tbl"><tr><th>政見</th><th>局處</th><th>角色</th><th>狀態</th></tr>' +
       rows.map(function (r) { var p = D.policy[r["政策ID"]]; return "<tr><td>" + policyLink(r["政策ID"]) + "</td><td>" + agencyLink(r["局處ID"]) + "</td><td>" + esc(r["角色"]) + "</td><td>" + statusPill(p["目前狀態"]) + "</td></tr>"; }).join("") + "</table></details>";
-    return "<h1>政見追蹤</h1>" + subtabs(PO_TABS, "#/map") + dchips +
+    var nf = doms.filter(function (d) { return MAPFOLD[d]; }).length;
+    var tools = doms.length > 1 ? '<div class="maptools"><button type="button" data-fold="all"' + (nf === doms.length ? " disabled" : "") + '>全部收起</button><button type="button" data-fold="none"' + (nf ? "" : " disabled") + ">全部展開</button>" +
+      '<span class="muted">點領域名稱可單獨收起或展開；收起後同一局處的線會合併，線越粗代表涉及的政見越多。</span></div>' : "";
+    return "<h1>政見追蹤</h1>" + subtabs(PO_TABS, "#/map") +
       '<p class="muted">左邊是政見（圓點顏色代表狀態，依領域分組），右邊是負責的局處，虛線代表兩者的關係。滑鼠移到任一項目上，會只顯示和它有關的線；點一下可進入該頁。</p>' +
-      '<div class="legend">' + legend + "</div>" +
+      '<div class="legend">' + legend + "</div>" + tools +
       '<div class="mapwrap"><svg id="pmap" viewBox="0 0 ' + W + " " + h + '" width="' + W + '" height="' + h + '" role="img" aria-label="政策與局處關聯圖">' +
-      '<text class="mhead" x="18" y="18">政見</text><text class="mhead" x="' + AX + '" y="18">局處</text>' + labels + lines + pn + an + "</svg></div>" + table;
+      '<text class="mhead" x="18" y="18">政見</text><text class="mhead" x="' + AX + '" y="18">局處</text>' + lines + heads + pn + an + "</svg></div>" + table;
   };
   function trunc(s, n) { s = s || ""; return s.length > n ? s.slice(0, n) + "…" : s; }
+  function rerenderMap() { var y = window.scrollY; render(true); window.scrollTo(0, y); }
   function bindMap() {
     var svg = document.getElementById("pmap"); if (!svg) return;
+    var toggle = function (d) { MAPFOLD[d] = !MAPFOLD[d]; rerenderMap(); };
+    svg.querySelectorAll("[data-dom]").forEach(function (g) {
+      var d = g.getAttribute("data-dom");
+      g.addEventListener("click", function () { toggle(d); });
+      g.addEventListener("keydown", function (e) { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(d); } });
+    });
+    $main.querySelectorAll("[data-fold]").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var all = b.getAttribute("data-fold") === "all";
+        svg.querySelectorAll(".mdomh").forEach(function (g) { MAPFOLD[g.getAttribute("data-dom")] = all; });
+        rerenderMap();
+      });
+    });
     var links = svg.querySelectorAll(".mlink");
     function on(key, val) {
       svg.classList.add("focus");
@@ -480,7 +500,7 @@
     return "#/" + r.page + (s ? "?" + s : "");
   }
   var NAV = { home: "", map: "policies", org: "agencies", load: "agencies", policies: "policies", policy: "policies", agencies: "agencies", agency: "agencies", person: "agencies", councillors: "councillors", councillor: "councillors", questions: "questions", about: "about" };
-  function render() {
+  function render(keep) {
     var r = parseHash(), f = R[r.page];
     $main.innerHTML = (D.sim ? '<div class="demo">目前是<b>模擬模式</b>：把黃世杰的 79 項政見全部放進來，看畫面會長怎樣。負責局處是站方初步判斷、尚未查證，狀態一律設為未啟動。<a href="./">回正式網站</a></div>' : D.demo ? '<div class="demo">目前是<b>示範模式</b>：政見進度、狀態與質詢都是虛構的範例。<a href="./">回正式網站</a></div>' : "") +
       (f ? f(r.id && r.page !== "policies" ? r.id : r.q, r.q) : notFound());
@@ -488,7 +508,7 @@
     document.querySelectorAll("header nav a").forEach(function (a) { a.classList.toggle("on", a.dataset.k === NAV[r.page]); });
     var h1 = $main.querySelector("h1");
     document.title = (r.page === "home" ? "" : (h1 ? h1.textContent + "｜" : "")) + (CFG.siteName || "桃園市政監督");
-    window.scrollTo(0, 0);
+    if (!keep) window.scrollTo(0, 0);
   }
 
   window.addEventListener("hashchange", function () { if (D) render(); });
