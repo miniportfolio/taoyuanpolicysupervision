@@ -33,8 +33,9 @@
     }).filter(function (o) { return o[head[0]]; });   // 第一欄（代碼）空白的列略過
   }
 
+  var DEMO = /[?&]demo=1/.test(location.search);
   function urlFor(tab, cfg) {
-    if (cfg.sheetId) {
+    if (cfg.sheetId && !DEMO) {
       return "https://docs.google.com/spreadsheets/d/" + cfg.sheetId +
         "/gviz/tq?tqx=out:csv&headers=1&sheet=" + encodeURIComponent(tab);
     }
@@ -53,7 +54,7 @@
     })).then(function (pairs) {
       var raw = {};
       pairs.forEach(function (p) { raw[p[0]] = p[1]; });
-      return build(raw, !cfg.sheetId);
+      return build(raw, !cfg.sheetId || DEMO);
     });
   }
 

@@ -286,7 +286,7 @@
   var NAV = { home: "", policies: "policies", policy: "policies", agencies: "agencies", agency: "agencies", person: "agencies", councillors: "councillors", councillor: "councillors", questions: "questions", about: "about" };
   function render() {
     var r = parseHash(), f = R[r.page];
-    $main.innerHTML = (D.demo ? '<div class="demo">目前顯示的是<b>範例資料</b>；在 config.js 填入試算表代碼後，就會讀取正式資料。</div>' : "") +
+    $main.innerHTML = (D.demo ? '<div class="demo">目前是<b>示範模式</b>：政見進度、狀態與質詢都是虛構的範例。<a href="./">回正式網站</a></div>' : "") +
       (f ? f(r.id && r.page !== "policies" ? r.id : r.q, r.q) : notFound());
     document.querySelectorAll("header nav a").forEach(function (a) { a.classList.toggle("on", a.dataset.k === NAV[r.page]); });
     var h1 = $main.querySelector("h1");
