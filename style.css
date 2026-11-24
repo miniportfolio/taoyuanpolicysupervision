@@ -113,3 +113,6 @@ li.q p{margin:4px 0;font-size:14.5px}
 }
 .tbl td:nth-child(-n+2){white-space:nowrap}
 @media (max-width:720px){.tbl{font-size:13.5px}.tbl th,.tbl td{padding:6px 4px}}
+.rootcard{display:block;background:var(--accent-soft);border:1px solid var(--accent);border-radius:14px;padding:14px 16px;margin:0 0 18px;text-decoration:none;color:var(--ink)}
+.rootcard b{font-size:18px;margin-right:8px}.rootcard p{margin:4px 0 0;font-size:14px;color:var(--muted)}
+h2 small{font-size:13px}

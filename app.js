@@ -152,20 +152,30 @@
   };
 
   R.agencies = function () {
-    var L = ["一級機關", "二級機關", "區公所", "中央機關", "其他"];
-    var tops = D.T["局處"].filter(function (a) { return !D.agency[a["上級局處ID"]]; });
-    return "<h1>局處與職掌</h1><p class=\"muted\">點進局處可看職掌、歷任首長、負責的政見與被質詢紀錄。</p>" +
-      L.map(function (lv) {
-        var g = tops.filter(function (a) { return (a["層級"] || "其他") === lv; });
-        if (!g.length) return "";
-        return "<h2>" + lv + '</h2><ul class="ags">' + g.map(function (a) {
-          var h = D.head(a["局處ID"]);
-          return '<li><a href="#/agency/' + esc(a["局處ID"]) + '"><b>' + esc(a["名稱"]) + "</b>" +
-            '<span class="muted">' + (h ? esc(h["職稱"]) + " " + esc((D.person[h["人物ID"]] || {})["姓名"] || "") : "首長未填") + "</span>" +
-            "<p>" + esc(a["職掌摘要"]) + "</p>" +
-            (a._children.length ? '<div class="sub">下屬：' + a._children.map(function (c) { return esc(c["名稱"]); }).join("、") + "</div>" : "") +
-            "</a></li>";
-        }).join("") + "</ul>";
+    var ROOT = "D000", root = D.agency[ROOT];
+    var L = [["一級機關", "一級機關"], ["區公所", "區公所"], ["其他", "事業機構與行政法人"], ["中央機關", "中央機關"]];
+    // 二級機關收在上級卡片裡；其餘依層級分組
+    var list = D.T["局處"].filter(function (a) { return a["局處ID"] !== ROOT && a["層級"] !== "二級機關"; });
+    function card(a) {
+      var h = D.head(a["局處ID"]);
+      var kids = a._children.filter(function (c) { return c["層級"] === "二級機關"; });
+      return '<li><a href="#/agency/' + esc(a["局處ID"]) + '"><b>' + esc(a["名稱"]) + "</b>" +
+        '<span class="muted">' + (h ? esc(h["職稱"]) + " " + esc((D.person[h["人物ID"]] || {})["姓名"] || "") : "") + "</span>" +
+        "<p>" + esc(a["職掌摘要"]) + "</p>" +
+        (kids.length ? '<div class="sub">下屬：' + kids.map(function (c) { return esc(c["名稱"]); }).join("、") + "</div>" : "") +
+        "</a></li>";
+    }
+    var top = "";
+    if (root) {
+      var h = D.head(ROOT);
+      top = '<a class="rootcard" href="#/agency/' + ROOT + '"><b>' + esc(root["名稱"]) + "</b>" +
+        (h ? '<span class="muted">' + esc(h["職稱"]) + " " + esc((D.person[h["人物ID"]] || {})["姓名"] || "") + "</span>" : "") +
+        "<p>" + esc(root["職掌摘要"]) + "</p></a>";
+    }
+    return "<h1>局處與職掌</h1><p class=\"muted\">點進局處可看職掌、歷任首長、負責的政見與被質詢紀錄。</p>" + top +
+      L.map(function (g) {
+        var arr = list.filter(function (a) { return (a["層級"] || "其他") === g[0]; });
+        return arr.length ? "<h2>" + g[1] + ' <small>' + arr.length + '</small></h2><ul class="ags">' + arr.map(card).join("") + "</ul>" : "";
       }).join("");
   };
 
@@ -183,7 +193,9 @@
       "<h1>" + esc(a["名稱"]) + "</h1>" +
       '<div class="top"><span class="tag">' + esc(a["層級"] || "") + "</span>" + src(a["官網"], "官網") + src(a["出處網址"], "職掌出處") + "</div>" +
       '<section class="card"><h2>職掌</h2><p>' + esc(a["職掌摘要"] || "未填") + "</p>" +
-      (a._children.length ? '<p class="muted">下屬機關：' + a._children.map(function (c) { return agencyLink(c["局處ID"]); }).join("、") + "</p>" : "") + "</section>" +
+      (up ? '<p class="muted">上級：' + agencyLink(up["局處ID"]) + "</p>" : "") +
+      (a._children.length ? '<p class="muted">下屬機關（' + a._children.length + "）：" + a._children.map(function (c) { return agencyLink(c["局處ID"]); }).join("、") + "</p>" : "") +
+      (a["備註"] ? '<p class="fine">' + esc(a["備註"]) + "</p>" : "") + "</section>" +
       '<section class="card"><h2>首長</h2>' + (h ? '<p class="now">現任：' + personLink(h["人物ID"]) + " " + esc(h["職稱"]) + '<span class="muted">（' + esc(h["到任日"]) + " 到任）</span></p>" : "") + hist + "</section>" +
       '<section class="card"><h2>負責的政見</h2>' + pol + "</section>" +
       '<section class="card"><h2>擔任主管機關的進度</h2>' + steps(a._steps, true) + "</section>" +
