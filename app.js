@@ -97,9 +97,9 @@
 
   R.policies = function (q) {
     var st = q.st || "", ty = q.ty || "", cat = q.cat || "";
-    var cats = []; D.T["政策"].forEach(function (p) { if (p["類別"] && cats.indexOf(p["類別"]) < 0) cats.push(p["類別"]); });
+    var cats = []; D.T["政策"].forEach(function (p) { if ((p["領域"] || p["類別"]) && cats.indexOf((p["領域"] || p["類別"])) < 0) cats.push((p["領域"] || p["類別"])); });
     var list = D.T["政策"].filter(function (p) {
-      return (!st || p["目前狀態"] === st) && (!ty || p["來源類型"] === ty) && (!cat || p["類別"] === cat);
+      return (!st || p["目前狀態"] === st) && (!ty || p["來源類型"] === ty) && (!cat || (p["領域"] || p["類別"]) === cat);
     });
     function chips(key, vals, cur) {
       return ['<a class="chip' + (cur ? "" : " on") + '" href="' + qs(q, key, "") + '">全部</a>'].concat(vals.map(function (v) {
@@ -109,7 +109,7 @@
     return "<h1>政見追蹤</h1>" +
       '<div class="filters"><div><span>來源</span>' + chips("ty", ["選舉公報", "競選期間說法", "就職後新增"], ty) + "</div>" +
       "<div><span>狀態</span>" + chips("st", STATUS, st) + "</div>" +
-      (cats.length ? "<div><span>類別</span>" + chips("cat", cats, cat) + "</div>" : "") + "</div>" +
+      (cats.length ? "<div><span>領域</span>" + chips("cat", cats, cat) + "</div>" : "") + "</div>" +
       '<p class="muted">' + list.length + " 項</p>" +
       (list.length ? '<ul class="cards">' + list.map(function (p) {
         var last = p._steps[0], lead = p._agencies.filter(function (r) { return r["角色"] === "主責"; })[0];
@@ -135,7 +135,7 @@
     }).join("");
     return '<nav class="crumb">' + link("#/policies", "政見追蹤") + " / " + esc(p["政策ID"]) + "</nav>" +
       "<h1>" + esc(p["政策名稱"]) + "</h1>" +
-      '<div class="top">' + statusPill(p["目前狀態"]) + srcType(p["來源類型"]) + (p["類別"] ? '<span class="tag">' + esc(p["類別"]) + "</span>" : "") +
+      '<div class="top">' + statusPill(p["目前狀態"]) + srcType(p["來源類型"]) + ((p["領域"] || p["類別"]) ? '<span class="tag">' + esc((p["領域"] || p["類別"])) + "</span>" : "") +
       (p["需中央配合"] === "是" ? '<span class="tag cen">需中央配合</span>' : "") +
       (p["狀態更新日"] ? '<span class="muted">狀態更新：' + esc(p["狀態更新日"]) + "</span>" : "") + "</div>" +
       (p["原文"] ? '<blockquote class="' + (p["來源類型"] === "選舉公報" ? "gz" : "cm") + '">' + esc(p["原文"]) +
