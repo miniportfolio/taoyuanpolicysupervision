@@ -384,7 +384,10 @@
     var rowsH = A.map(function (x) {
       var id = x.a["局處ID"], bw = function (n) { return (n / maxN * 100).toFixed(1) + "%"; };
       var stbar = x.lead ? x.st.map(function (n, i) { return n ? '<span class="seg" style="flex:' + n + ";background:" + STC[i] + '" title="' + STATUS[i] + " " + n + '"></span>' : ""; }).join("") : "";
-      return '<tr><th scope="row">' + agencyLink(id) + "</th>" +
+      var plist = x.a._policies.map(function (r) { var p = D.policy[r["政策ID"]]; return p ? '<li><span class="tag">' + esc(r["角色"]) + "</span>" + policyLink(r["政策ID"]) + " " + statusPill(p["目前狀態"]) + (p._steps[0] ? ' <span class="muted">最新：' + esc(p._steps[0]["環節"]) + "（" + esc(p._steps[0]["日期"]) + "）</span>" : "") + "</li>" : ""; }).join("");
+      var qlist = x.a._qs.slice(0, 5).map(function (q) { return "<li>" + esc(q["日期"]) + " " + cllrLink(q["議員ID"]) + "：" + esc(q["主題"] || "") + "</li>"; }).join("");
+      var detail = (plist || qlist) ? '<details class="ldet"><summary>看政見' + (qlist ? "與質詢" : "") + "</summary>" + (plist ? '<ul class="plain">' + plist + "</ul>" : "") + (qlist ? '<div class="muted" style="margin-top:6px">近期質詢</div><ul class="plain">' + qlist + "</ul>" : "") + "</details>" : "";
+      return '<tr><th scope="row">' + agencyLink(id) + detail + "</th>" +
         '<td><div class="lbar" title="主責 ' + x.lead + "、協辦 " + x.co + '"><span class="lb lead" style="width:' + bw(x.lead) + '"></span><span class="lb co" style="width:' + bw(x.co) + '"></span></div><span class="num">' + x.lead + " / " + x.co + "</span></td>" +
         '<td>' + (stbar ? '<div class="sbar">' + stbar + "</div>" : '<span class="muted">—</span>') + "</td>" +
         '<td class="num">' + (x.days == null ? '<span class="muted">—</span>' : esc(x.last) + (x.days >= 0 ? '<br><span class="muted">' + x.days + " 天前</span>" : "")) + "</td>" +
